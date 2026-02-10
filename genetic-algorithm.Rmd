@@ -1,0 +1,483 @@
+---
+title: "Algoritmos Genéticos aplicados al recorrido de Parques Nacionales"
+output: 
+  html_document:
+    theme: flatly 
+runtime: shiny
+---
+
+
+***Algoritmos Genéticos aplicados al recorrido de Parques Nacionales de la Repúplica Argentina***
+
+### Contexto del problema
+
+Este trabajo aborda un problema clásico de **optimización combinatoria**, análogo al *Problema del Viajante (TSP)*, aplicado al recorrido eficiente entre Parques Nacionales de la República Argentina.
+
+El objetivo es **minimizar la distancia total recorrida**, utilizando **Algoritmos Genéticos (GA)** como técnica heurística de búsqueda, adecuada para espacios de soluciones grandes donde los métodos exactos resultan computacionalmente costosos.
+
+**Nota sobre los datos**
+
+Las coordenadas geográficas corresponden a ubicaciones aproximadas de referencia de cada parque y se utilizan con fines **didácticos y de modelado**, no para navegación real.
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+options(repos = c(CRAN = "https://cran.rstudio.com/"))
+```
+
+
+**Librerías**
+
+```{r}
+# Instalar paquetes si no están instalados
+if(!require(GA)) install.packages("GA", dependencies = TRUE)  # Instala la librería GA si no está instalada #Dependencies = T signigica que instalamos paquetes si es que estan desinstalados para que pueda funcionar
+if(!require(leaflet)) install.packages("leaflet", dependencies = TRUE)  # Instala la librería leaflet si no está instalada
+if(!require(geosphere)) install.packages("geosphere", dependencies = TRUE)  # Instala la librería geosphere si no está instalada
+
+#Cargar librerías
+library(GA)
+library(leaflet)
+library(geosphere)
+library(readxl)
+
+```
+
+**Set de datos**
+Extraídos de Sistema de Información de Biodiversidad (https://sib.gob.ar/listado_parques.php?accion=parques)
+
+```{r}
+#Datos
+areas_protegidas <- read_excel("areas_protegidas.xlsx")
+areas_protegidas
+
+```
+
+
+**Exploración, transformación y limpieza de datos**
+
+```{r}
+str(areas_protegidas)
+```
+
+
+```{r}
+areas_protegidas <- areas_protegidas[-1,]
+colnames(areas_protegidas) <- areas_protegidas[1,]
+areas_protegidas <- areas_protegidas[-1,]
+areas_protegidas <- areas_protegidas[,c("ÁREA PROTEGIDA", "LATITUD","LONGITUD")]
+colnames(areas_protegidas) <- c("Area_protegida", "Latitud", "Longitud")
+rownames(areas_protegidas) <- NULL
+areas_protegidas$Area_protegida <- as.factor(areas_protegidas$Area_protegida)
+areas_protegidas$Latitud <- as.numeric(areas_protegidas$Latitud)
+areas_protegidas$Longitud <- as.numeric(areas_protegidas$Longitud)
+str(areas_protegidas)
+```
+
+
+**Selección aleatoria de parques y obtención de matriz de distancias**
+Para reducir la complejidad computacional y facilitar la visualización, se selecciona aleatoriamente un subconjunto de parques.  
+Cada ejecución puede producir un conjunto diferente de parques y, por lo tanto, un recorrido óptimo distinto.
+
+```{r}
+#Seleccionar 10 parques aleatoriamente
+library(dplyr)
+set.seed(200)
+areas_protegidas <- areas_protegidas %>% sample_n(15)
+n <- nrow(areas_protegidas) #Se asigna a n el número de filas a partir de un subconjutno que elije 10 filas aleatoriamente
+
+# Crear matriz de distancias geográficas usando la función distGeo de geosphere
+D <- matrix(0, nrow = n, ncol = n)  # Creamos una matriz de ceros para almacenar las distancias entre parques
+
+#Cálculo de distancias que se almacenan en la matriz
+for (i in 1:n) { #Para los parques almacenados como filas en i
+  for (j in 1:n) { #Para los parques almacenados como columnas en j
+    D[i, j] <- distGeo(c(areas_protegidas$Longitud[i], areas_protegidas$Latitud[i]), 
+                       c(areas_protegidas$Longitud[j], areas_protegidas$Latitud[j])) / 1000  #Para todos los i y j de la matriz D, calcular la distancia con distGeo, con argumentos distGeo (p1(long,lat),p2(long,lat)) 
+  }
+}
+D
+```
+
+**Obtención de las distancias en función de distintos recorridos**
+
+```{r}
+# Función que calcula la distancia total de un recorrido
+trayectoria <- function(recorrido) { #Funcion que recibe de argumento un vector que indica el orden del recorrido de los parques, del 1 al 10
+  total_dist <- 0  # Inicializa la variable para acumular la distancia total
+  for (i in 1:(length(recorrido) - 1)) {  #Se crea un ciclo for que itera desde 1 hasta la longitud del vector -1, evitando que en el siguiente paso se produzca un error al sumar 1 en la última posición del recorrido
+    total_dist <- total_dist + D[recorrido[i], recorrido[i + 1]]  #A la distancia actual, aumenta el valor de la distancia que existe entre el elemento i del vector recorrido, que representa el parque actual en el itinerario, y el siguiente elemento, que es próximo parque.
+  }
+  return(total_dist)  # Devuelve la distancia total del recorrido
+}
+
+```
+
+**Función fitness**
+
+```{r}
+#Definicón de la función fitness
+GA_objetivo <- function(x){
+        return(-trayectoria(x))#Función tal que devuelva la trayectoria mínima. Se coloca un signo menos porque el algoritmo GA busca maximizar, entonces le indicamos que realice el procedimiento inverso
+}
+```
+
+### Algoritmo Genético
+
+Los Algoritmos Genéticos simulan procesos evolutivos naturales mediante:
+- Poblaciones de soluciones
+- Operadores de cruce y mutación
+- Selección basada en aptitud (*fitness*)
+
+En este caso, cada individuo representa un **orden posible de visita de los parques**.
+
+**Ejecución del algoritmo GA**
+
+```{r}
+# Ejecutar el algoritmo genético
+ga_modelo <- ga(
+        type = "permutation", #El algoritmo generará y optimizará permutaciones, es decir, recorridos con un determinado orden
+        fitness = GA_objetivo, #Establecemos como función fitness la definida anteriormente
+        lower = 1, upper = n, #El recorrido se genera con valores que van de 1 a n
+        popSize = 10, #Tamaño de la población o número de soluciones posibles
+        maxiter = 500, #Número máximo de iteraciones
+        pmutation = 0.2 #Probabilidad de que se genere una mutación, es decir, una variación en los recorridos
+)
+```
+
+**Obtención del recorrido óptimo**
+
+```{r}
+
+# Obtener la mejor solución (el recorrido óptimo)
+ruta_optima <- ga_modelo@solution[1, ]  # ga_modelo@solution es un objeto que contiene una matriz con las posibles soluciones. Extraemos la primera solución que es el mejor recorrido encontrado por el GA
+DistanciaOptima <- -ga_modelo@fitnessValue  # La mejor distancia encontrada (negada porque el GA maximiza)
+ruta_optima
+DistanciaOptima
+
+```
+
+**Mapa interactivo**
+El mapa interactivo permite visualizar:
+- La ubicación espacial de los parques
+- El recorrido óptimo encontrado por el algoritmo
+- La relación espacial entre provincias y áreas protegidas
+
+La visualización facilita la interpretación geográfica del resultado del modelo.
+
+
+```{r}
+pacman::p_load(devtools, leaflet, rnaturalearth, rnaturalearthdata, sf, rnaturalearthhires, install = T) 
+```
+
+
+```{r}
+# Cargar los límites nacionales de Argentina (directamente como sf)
+pais_arg <- ne_countries(country = "Argentina", returnclass = "sf")
+
+# Descargar las provincias de Argentina (directamente como sf)
+provincias_arg <- ne_states(country = "Argentina", returnclass = "sf")
+
+```
+
+
+```{r}
+# Crear el mapa interactivo
+mapa <- leaflet() %>%
+  addProviderTiles("Esri.WorldImagery") %>%  # Fondo satelital
+  setView(lng = mean(areas_protegidas$Longitud), lat = mean(areas_protegidas$Latitud), zoom = 5)  # Centrar mapa
+
+# Añadir los límites provinciales
+mapa <- mapa %>%
+  addPolygons(
+    data = provincias_arg,
+    fillColor = "#93a31c",  # Verde opaco para representar áreas naturales
+    fillOpacity = 0.4,  # Ligera transparencia para que no opaque el fondo
+    color = "#66347e",  # Verde más oscuro para los bordes provinciales
+    weight = 2,  # Grosor de las líneas provinciales
+    popup = ~name  # Muestra el nombre de la provincia al hacer clic
+  )
+
+# Añadir los límites nacionales de Argentina
+mapa <- mapa %>%
+  addPolygons(
+    data = pais_arg,
+    fillColor = "transparent",  # Sin relleno para no tapar el fondo
+    color = "#003f00",  # Verde oscuro para la frontera nacional
+    weight = 4  # Grosor de la línea de borde
+  )
+# Añadir los museos como marcadores
+for (i in 1:n) {
+  mapa <- mapa %>%
+   addCircleMarkers(
+    lng = areas_protegidas$Longitud, lat = areas_protegidas$Latitud,
+    color = "#228B22", # Verde oscuro
+    fillColor = "#390c44", # Verde claro
+    fillOpacity = 0.7, # Transparencia del relleno
+    radius = 6, # Tamaño del círculo
+    popup = areas_protegidas$Area_protegida[i])  # Añade un marcador por cada museo
+}
+
+# Añadir la línea del recorrido óptimo
+ruta_lat <- areas_protegidas$Latitud[ruta_optima]  # Latitudes del recorrido óptimo
+ruta_lng <- areas_protegidas$Longitud[ruta_optima]  # Longitudes del recorrido óptimo
+mapa <- mapa %>%
+  addPolylines(lng = ruta_lng, lat = ruta_lat, 
+    color = "#006400", # Verde más oscuro para contrastar
+    weight = 4, # Aumentamos el grosor de la línea
+    opacity = 0.7, # Le damos algo de transparencia para no tapar los detalles del mapa
+    dashArray = "10,5" 
+    )# Línea punteada para hacerla más visible)  # Dibuja una línea que conecta los museos en el recorrido óptimo
+
+# Mostrar el mapa
+mapa  # Muestra el mapa interactivo
+
+# Mostrar la distancia óptima y el recorrido de los museos
+cat("Distancia óptima encontrada:", DistanciaOptima, "km\n")  # Imprime la distancia mínima
+cat("Recorrido óptimo de los Parques Nacionales:\n")
+for (i in 1:length(ruta_optima)) {
+  cat(i, "-", areas_protegidas$Area_protegida[ruta_optima[i]], "\n")  # Imprime el nombre de los museos en el orden del recorrido óptimo
+}
+```
+
+**Buscar los mejores parámetros**
+
+```{r}
+# Función para buscar los mejores hiperparámetros
+buscar_mejores_hiperparametros <- function(hyper_iters = 10) { ## Indica que iterará 10 veces buscando los parámetros
+    mejor_distancia <- Inf   #Inicializa la mejor distancia con infinito ya que queremos minimizarla
+    mejores_parametros <- NULL  # Inicializamos el contenedor de mejores parámetros en null hasta que encontremos los mejores 
+    
+    for (i in 1:hyper_iters) { #Se ejecuta hyper_iters veces, es decir 10. 
+            #Cada iteración devuelve un conjunto de hyper parámetros
+        
+        # Selección aleatoria de los hiperparámetros en cada iteración:
+        n_poblacion <- sample(c(10, 20, 50), 1)  # Selecciona aleatoriamente un valor de la lista para el tamaño de la población entre 10, 20 y 50
+        cxpb <- runif(1, 0.4, 0.9)  # Selecciona un número de probabilidad de cruce aleatoria entre 0.4 y 0.9
+        mutpb <- runif(1, 0.1, 0.3)  # Selecciona un número de probabilidad de mutación aleatoria entre 0.1 y 0.3
+        ngen <- sample(c(100, 300, 500), 1)  # Selecciona aleatoriamente un valor de la lista para el número de generaciones entre 100, 300 y 500
+
+        # Ejecutar el algoritmo genético con los hiperparámetros seleccionados en las iteraciones
+        ga_modelo <- ga(
+            type = "permutation", 
+            fitness = function(x) -trayectoria(x),  # Función de fitness definida directamente dentro del código sin necesidad de crear una función aparte.
+            lower = 1, upper = nrow(areas_protegidas),  
+            popSize = n_poblacion,  
+            maxiter = ngen,  
+            pmutation = mutpb,  
+            pcrossover = cxpb 
+        )
+
+        # Obtener la mejor solución y la distancia mínima para este conjunto de hiperparámetros
+        ruta_optima <- ga_modelo@solution[1, ]  # Extrae la mejor ruta obtenida
+        distancia_optima <- -ga_modelo@fitnessValue  # La mejor distancia encontrada (negada porque el GA maximiza)
+
+        # Comparar la distancia obtenida con la mejor distancia encontrada hasta ahora
+        if (distancia_optima < mejor_distancia) {
+            # Si encontramos una mejor distancia, actualizamos los mejores parámetros
+        #Guardamos: tamaño de la población, probabilidades de mutación y cruce, número de generaciones, la mejor ruta y la mejor distancia, devolvemos en forma de lista
+            mejor_distancia <- distancia_optima
+            mejores_parametros <- list(
+                n_poblacion = n_poblacion,  
+                cxpb = cxpb,
+                mutpb = mutpb,
+                ngen = ngen,
+                ruta_optima = ruta_optima, 
+                distancia_optima = mejor_distancia 
+            )
+        }
+    }
+
+    return(mejores_parametros)  
+}
+
+# Ejecutar la búsqueda de hiperparámetros
+mejores_parametros <- buscar_mejores_hiperparametros(hyper_iters = 10)
+
+#Después de completar las 10 iteraciones, buscar_mejores_hiperparametros() devuelve una lista con los mejores valores encontrados luego de las 10 pruebas
+
+# Mostrar los mejores hiperparámetros encontrados
+cat("Mejores hiperparámetros encontrados:\n")
+cat("Tamaño de población:", mejores_parametros$n_poblacion, "\n")
+cat("Probabilidad de cruce:", round(mejores_parametros$cxpb, 2), "\n")
+cat("Probabilidad de mutación:", round(mejores_parametros$mutpb, 2), "\n")
+cat("Número de generaciones:", mejores_parametros$ngen, "\n")
+cat("Distancia óptima:", mejores_parametros$distancia_optima, "km\n")
+
+
+print(mejores_parametros)
+
+```
+
+### Simulación de costos
+
+La simulación de costos tiene un carácter **exploratorio** y se basa en supuestos simplificados:
+- Un costo promedio por kilómetro recorrido
+- Un costo base asociado a entradas y gastos generales
+
+Los valores utilizados no representan precios oficiales y se emplean únicamente con fines ilustrativos.
+
+```{r}
+# Simulación de costos del mejor recorrido
+
+# Definir costos
+costo_por_km <- 800  #Pesos argentinos al día de hoy 7/2/25, partiendo de $1128/L nafta
+costo_base <- 202500  #Partiendo de un promedio de $13.500 para entradas de parques, teniendo en cuentra 15 parques
+
+# Calcular costo total del recorrido óptimo
+costo_total <- (DistanciaOptima * costo_por_km) + costo_base
+
+# Mostrar resultados de la simulación de costos
+cat("\n*** Simulación de costos ***\n")
+cat("Costo por kilómetro:", costo_por_km, "$\n")
+cat("Costo base del viaje:", costo_base, "$\n")
+cat("Costo total estimado del recorrido óptimo:", costo_total, "$\n")
+```
+
+### Aplicación interactiva
+
+Se desarrolla una aplicación Shiny que permite:
+- Modificar hiperparámetros del algoritmo genético
+- Visualizar dinámicamente el recorrido óptimo
+- Explorar el impacto de los parámetros en el costo y la distancia
+
+Esta interfaz transforma el modelo en una herramienta interactiva de análisis.
+
+
+```{r}
+library(shiny)
+library(GA)
+library(leaflet)
+library(geosphere)
+library(plotly)
+library(tibble)  # Asegurar que tibble está disponible
+
+# Definimos la interfaz de usuario
+ui <- fluidPage(
+  titlePanel("Optimización de Recorridos entre Parques Nacionales Argentinos"),
+  
+  sidebarLayout(
+    sidebarPanel(
+      h3("Parámetros del Algoritmo Genético"),
+      sliderInput("popSize", "Tamaño de Población:", min = 10, max = 100, value = 10, step = 5),
+      sliderInput("cxpb", "Probabilidad de Cruce:", min = 0.4, max = 0.9, value = 0.5, step = 0.05),
+      sliderInput("mutpb", "Probabilidad de Mutación:", min = 0.1, max = 0.3, value = 0.2, step = 0.05),
+      sliderInput("ngen", "Número de Generaciones:", min = 100, max = 500, value = 200, step = 50),
+      
+      actionButton("calcular", "Calcular"),
+      h4("Análisis de Costos"),
+      textOutput("costo_text"),
+      textOutput("ruta_optima_text")
+    ),
+    
+    mainPanel(
+      h3("Recorrido Optimizado"),
+      leafletOutput("mapa_recorrido"),  # Asegurar que coincide con `output$mapa_recorrido`
+      plotlyOutput("emoji_plot")
+    )
+  )
+)
+
+# Definimos el servidor
+server <- function(input, output, session) {
+  
+  # Datos de las áreas protegidas
+  areas_protegidas <- tibble(
+    Area_protegida = c("Parque Nacional Los Glaciares", "Parque Nacional Nahuel Huapi", 
+                       "Parque Nacional Lanín", "Parque Nacional Perito Moreno", 
+                       "Parque Nacional El Rey", "Parque Nacional Iguazú", 
+                       "Parque Nacional Calilegua", "Parque Nacional Talampaya", 
+                       "Parque Nacional Quebrada del Condorito", "Parque Nacional El Palmar", 
+                       "Parque Nacional Campos del Tuyú", "Parque Nacional Islas de Santa Fe", 
+                       "Parque Nacional Mburucuyá", "Parque Nacional Chaco", "Parque Nacional Copo"),
+    Latitud = c(-49.9, -42.8, -39.0, -47.2, -26.0, -25.7, -23.8, -29.8, -31.6, -31.8, -36.3, -32.9, -28.0, -26.8, -25.9),
+    Longitud = c(-73.2, -71.8, -70.4, -71.3, -53.8, -54.5, -64.8, -68.1, -64.9, -58.1, -56.7, -60.7, -58.2, -59.6, -61.3)
+  )
+  
+  n <- nrow(areas_protegidas)
+  
+  # Crear matriz de distancias
+  D <- outer(1:n, 1:n, Vectorize(function(i, j) distGeo(
+    c(areas_protegidas$Longitud[i], areas_protegidas$Latitud[i]),
+    c(areas_protegidas$Longitud[j], areas_protegidas$Latitud[j])
+  ) / 1000))
+  
+  # Función de fitness
+  trayectoria <- function(recorrido) {
+    sum(D[cbind(recorrido[-length(recorrido)], recorrido[-1])])
+  }
+  
+  observeEvent(input$calcular, {
+    ga_modelo <- ga(
+      type = "permutation", 
+      fitness = function(x) -trayectoria(x),
+      lower = 1, upper = n, 
+      popSize = input$popSize, 
+      maxiter = input$ngen, 
+      pmutation = input$mutpb, 
+      pcrossover = input$cxpb
+    )
+    
+    ruta_optima <- ga_modelo@solution[1, ]
+    distancia_optima <- -ga_modelo@fitnessValue
+    costo_estimado <- distancia_optima * 100
+    
+    output$costo_text <- renderText({
+      paste("Costo estimado del recorrido optimizado:", round(costo_estimado, 2), "pesos argentinos")
+    })
+    
+    output$ruta_optima_text <- renderText({
+      paste("Distancia óptima encontrada:", round(distancia_optima, 2), "km")
+    })
+    
+    output$mapa_recorrido <- renderLeaflet({  # Nombre corregido
+      req(input$calcular)  # Asegurar que el botón se presiona antes de mostrar el mapa
+      
+      ruta_lat <- areas_protegidas$Latitud[ruta_optima]  
+      ruta_lng <- areas_protegidas$Longitud[ruta_optima]  
+      
+      leaflet() %>%
+        addProviderTiles("Esri.WorldImagery") %>%  
+        setView(lng = mean(areas_protegidas$Longitud), lat = mean(areas_protegidas$Latitud), zoom = 5) %>%
+        
+        # Añadir las áreas protegidas como marcadores
+        addCircleMarkers(
+          lng = areas_protegidas$Longitud, 
+          lat = areas_protegidas$Latitud,
+          color = "#228B22", # Verde oscuro
+          fillColor = "#390c44", # Verde claro
+          fillOpacity = 0.7,
+          radius = 6,
+          popup = areas_protegidas$Area_protegida
+        ) %>%
+        
+        # Dibujar la línea del recorrido óptimo
+        addPolylines(
+          lng = ruta_lng, lat = ruta_lat, 
+          color = "#006400", # Verde oscuro
+          weight = 4,
+          opacity = 0.7,
+          dashArray = "10,5"  # Línea punteada
+        )
+    })
+    
+    output$emoji_plot <- renderPlotly({  # Faltaba renderizar plotly correctamente
+      plot_ly(
+        x = c(1),
+        y = c(1),
+        text = paste("Costo:", round(costo_estimado, 2), "💰"),  # Agregué un emoji de dinero
+        mode = 'text',
+        textfont = list(size = 36, color = "orange"),  
+        hoverinfo = 'text'
+      ) %>%
+        layout(
+          xaxis = list(title = '', zeroline = FALSE, showline = FALSE, showticklabels = FALSE),
+          yaxis = list(title = '', zeroline = FALSE, showline = FALSE, showticklabels = FALSE)
+        )
+    })
+  })
+}
+
+# Ejecutar la aplicación
+shinyApp(ui = ui, server = server)
+```
+
