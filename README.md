@@ -6,7 +6,6 @@ This project applies **Genetic Algorithms (GA)** to solve a combinatorial optimi
 
 The objective is to **minimize the total travel distance** between selected parks using evolutionary optimization techniques, while providing an interactive spatial visualization and cost simulation.
 
----
 
 ## Objectives
 
@@ -17,7 +16,6 @@ The objective is to **minimize the total travel distance** between selected park
 - Simulate travel costs based on optimized distances
 - Provide an interactive Shiny application for exploration
 
----
 
 ## Data Source
 
@@ -27,7 +25,6 @@ https://sib.gob.ar/listado_parques.php?accion=parques
 **Important note:**  
 Geographic coordinates are approximate and used for **educational and modeling purposes only**, not for real-world navigation.
 
----
 
 ## Methodology
 
@@ -53,7 +50,6 @@ Geographic coordinates are approximate and used for **educational and modeling p
    - Optimal route sequence
    - Minimum total travel distance
 
----
 
 ## Visualization
 
@@ -63,7 +59,6 @@ Geographic coordinates are approximate and used for **educational and modeling p
   - Optimized travel route
 - Visual support for spatial interpretation of the algorithm results
 
----
 
 ## Cost Simulation
 
@@ -74,7 +69,6 @@ A simplified travel cost simulation is included, based on:
 **Disclaimer:**  
 All cost values are hypothetical and intended for **illustrative purposes only**.
 
----
 
 ## Interactive Application (Shiny)
 
@@ -84,9 +78,8 @@ A Shiny application allows users to:
 - Visualize updated routes on an interactive map
 - Observe changes in distance and estimated costs
 
----
 
-## Technologies Used
+## Tools
 
 - R
 - Genetic Algorithms (`GA` package)
@@ -95,7 +88,6 @@ A Shiny application allows users to:
 - Shiny (interactive application)
 - Plotly (interactive visualization)
 
----
 
 ## Author
 
