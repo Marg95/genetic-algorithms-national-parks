@@ -1,93 +1,139 @@
-# Genetic Algorithms for Optimized Routes in Argentine National Parks
+# Genetic Algorithms applied to National Parks Route Optimization (Argentina)
+
+This project applies Genetic Algorithms (GA) to solve a combinatorial optimization problem analogous to the Traveling Salesman Problem (TSP), focused on minimizing travel distance between National Parks in Argentina.
+
+The model integrates spatial data processing, evolutionary optimization, and interactive visualization using R and Shiny.
+
+---
 
 ## Project Overview
 
-This project applies **Genetic Algorithms (GA)** to solve a combinatorial optimization problem analogous to the **Traveling Salesman Problem (TSP)**, focusing on finding an optimal travel route between **National Parks in Argentina**.
+This project addresses a classical optimization problem applied to territorial routing.
 
-The objective is to **minimize the total travel distance** between selected parks using evolutionary optimization techniques, while providing an interactive spatial visualization and cost simulation.
+Given a set of National Parks and their geographic coordinates, the objective is to determine the visitation order that minimizes total travel distance.
 
+Because the number of possible routes grows exponentially, a Genetic Algorithm is implemented as a heuristic search method suitable for large solution spaces.
 
-## Objectives
+The workflow is fully reproducible in RMarkdown and includes an interactive Shiny application.
 
-- Model a route optimization problem using Genetic Algorithms
-- Minimize total travel distance between national parks
-- Explore the impact of GA hyperparameters on solution quality
-- Visualize optimized routes using interactive maps
-- Simulate travel costs based on optimized distances
-- Provide an interactive Shiny application for exploration
+---
 
+## Analytical Value
 
-## Data Source
+The project demonstrates:
 
-The dataset of protected areas was obtained from the **Sistema de Información de Biodiversidad (SIB)**:  
-https://sib.gob.ar/listado_parques.php?accion=parques
+- Application of evolutionary algorithms to spatial problems  
+- Optimization of territorial mobility scenarios  
+- Integration of geospatial data with algorithmic modeling  
+- Exploration of hyperparameters in heuristic optimization  
+- Translation of mathematical modeling into interactive tools  
 
-**Important note:**  
-Geographic coordinates are approximate and used for **educational and modeling purposes only**, not for real-world navigation.
+Although developed for modeling purposes, the approach is applicable to logistics, tourism planning, and route optimization problems.
 
+---
+
+## Data
+
+- Source: Sistema de Información de Biodiversidad (SIB Argentina)  
+- File: `areas_protegidas.xlsx`  
+- Variables used:
+  - Area_protegida  
+  - Latitud  
+  - Longitud  
+
+Coordinates correspond to approximate reference locations and are used for modeling purposes only.
+
+To reduce computational complexity, a random subset of parks is selected in each execution.
+
+---
 
 ## Methodology
 
-1. **Data Cleaning and Preparation**
-   - Removal of metadata rows
-   - Selection of park names and geographic coordinates
-   - Conversion of coordinates to numeric format
+The workflow includes:
 
-2. **Distance Matrix Construction**
-   - Geographic distances computed using the `distGeo()` function from the `geosphere` package
-   - Distances expressed in kilometers
+1. Data cleaning and transformation  
+2. Construction of a geographic distance matrix using `geosphere::distGeo`  
+3. Definition of total route distance function  
+4. Construction of fitness function (distance minimization)  
+5. Genetic Algorithm implementation using the `GA` package  
+6. Extraction of optimal route and minimum distance  
+7. Hyperparameter search (population size, mutation rate, crossover probability, generations)  
+8. Cost simulation based on optimal distance  
+9. Interactive geospatial visualization with Leaflet  
 
-3. **Genetic Algorithm Optimization**
-   - Each individual represents a permutation of park visit order
-   - Fitness function defined as the negative total route distance
-   - GA operators:
-     - Selection
-     - Crossover
-     - Mutation
-   - Hyperparameter tuning through randomized search
+---
 
-4. **Route Optimization Output**
-   - Optimal route sequence
-   - Minimum total travel distance
+## Interactive Application
 
+A Shiny application allows users to:
 
-## Visualization
+- Modify GA hyperparameters  
+- Recalculate the optimal route dynamically  
+- Visualize results on an interactive satellite map  
+- Observe estimated travel costs  
+- Explore distance results in real time  
 
-- Interactive **Leaflet map** showing:
-  - National and provincial boundaries
-  - National park locations
-  - Optimized travel route
-- Visual support for spatial interpretation of the algorithm results
-
+---
 
 ## Cost Simulation
 
-A simplified travel cost simulation is included, based on:
-- Average cost per kilometer
-- Fixed base cost for park access and general expenses
+An exploratory cost model is included based on:
 
-**Disclaimer:**  
-All cost values are hypothetical and intended for **illustrative purposes only**.
+- Cost per kilometer  
+- Base travel cost  
 
+Values are illustrative and used for modeling purposes.
 
-## Interactive Application (Shiny)
+---
 
-A Shiny application allows users to:
-- Adjust GA hyperparameters in real time
-- Recompute optimized routes
-- Visualize updated routes on an interactive map
-- Observe changes in distance and estimated costs
+## Technologies and Tools
 
+- R  
+- RMarkdown  
+- Shiny  
+- GA  
+- geosphere  
+- leaflet  
+- plotly  
+- rnaturalearth  
+- sf  
 
-## Tools
+---
 
-- R
-- Genetic Algorithms (`GA` package)
-- Leaflet (interactive maps)
-- Geosphere (geographic distance calculations)
-- Shiny (interactive application)
-- Plotly (interactive visualization)
+## Results
 
+The project produces:
+
+- Optimized visitation route  
+- Minimum total travel distance  
+- Interactive geospatial visualization  
+- Hyperparameter comparison results  
+- Cost estimation output  
+- Reproducible HTML + Shiny application  
+
+---
+
+## How to Run
+
+1. Clone the repository  
+2. Ensure `areas_protegidas.xlsx` is in the root directory  
+3. Open the `.Rmd` file  
+4. Run as Shiny application or render to HTML  
+
+---
+
+## Skills Demonstrated
+
+- Combinatorial optimization  
+- Genetic Algorithms implementation  
+- Hyperparameter tuning  
+- Geospatial modeling  
+- Distance matrix computation  
+- Interactive mapping  
+- Simulation modeling  
+- Reproducible reporting  
+
+---
 
 ## Author
 
